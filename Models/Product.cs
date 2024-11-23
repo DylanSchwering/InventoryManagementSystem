@@ -12,12 +12,12 @@ namespace RoughDraftInventoryManagmentSystem.Models
 		public string SKU { get; set; }
 
 		[Range(0.01, 10000, ErrorMessage = "Price must be between 0.01 and 10,000.")]
-		public decimal Price { get; set; }
+		public decimal? Price { get; set; }
 
 		[Range(0, int.MaxValue, ErrorMessage = "Quanitity cannot be negative")]
 		public int Quantity { get; set; }
 
-		public string ImageUrl { get; set; }
+		public string? ImageUrl { get; set; }
 
 		// possible addition
 		//public Product(int quantity)
