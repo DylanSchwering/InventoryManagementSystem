@@ -27,6 +27,14 @@
     <button type="button" class="btn-close" aria-label="Close" @onclick="DismissAlert"></button>
 </div>
 
+
+<!-- Barcode Scanning Button -->
+<div class="mb-3">
+    <button class="btn btn-secondary" @onclick="StartBarcodeScanner">Scan Barcode with Camera</button>
+</div>
+<div id="barcode-scanner" style="width: 300px; height: 300px;"></div>
+
+
 <!-- Mode Switch: Add or Subtract Quantity -->
 <div class="form-check form-switch mb-3">
     <input type="checkbox" class="form-check-input" id="quantityModeSwitch" @bind="IsAddMode" />
@@ -165,6 +173,11 @@
             background-color: #f0f0f0;
         }
         -->
+
+
+
+
+
     </style>
     @if (SelectedProduct != null)
 {
@@ -734,5 +747,23 @@
             await JSRuntime.InvokeVoidAsync("registerBarcodeScanner", objRef);
         }
     }
+
+    // Start barcode scanning
+    private async Task StartBarcodeScanner()
+    {
+        await JSRuntime.InvokeVoidAsync("startQuagga");
+    }
+
+
+
+
+
+
+
+
+
+
+
+
 }
  

@@ -94,6 +94,44 @@
 </script>
 
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script>
+    function startQuagga() {
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: document.querySelector('#barcode-scanner'),
+                constraints: {
+                    facingMode: "environment" // Use the back camera on phones
+                }
+            },
+            decoder: {
+                readers: ["ean_reader", "code_128_reader"] // You can add more barcode formats here if needed
+            }
+        }, function (err) {
+            if (err) {
+                console.error(err);
+                return;
+            }
+            Quagga.start();
+        });
+
+        Quagga.onDetected(function (result) {
+            if (result && result.codeResult && result.codeResult.code) {
+                let barcode = result.codeResult.code;
+                console.log("Barcode detected and processed: ", barcode);
+
+                // Pass the barcode value to Blazor through JSInterop
+                DotNet.invokeMethodAsync('RoughDraftInventoryManagmentSystem', 'HandleScannedBarcode', barcode);
+                Quagga.stop(); // Stop scanning after a successful detection
+            }
+        });
+    }
+</script>
+
+
+
 
 
 
