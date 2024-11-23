@@ -1,0 +1,738 @@
+﻿@page "/products"
+@using RoughDraftInventoryManagmentSystem.Models;
+@inject RoughDraftInventoryManagmentSystem.Services.ProductService ProductService
+@inject IJSRuntime JSRuntime
+@inject HttpClient HttpClient
+@using System.Text.Json
+@using System.Collections.Generic;
+@using System.Text.Json.Serialization;
+@using System.Net.Http;
+@using System.Text.Json;
+@using System.Threading.Tasks;
+@using System.Collections.Generic;
+@using System;                      <!-- For basic system functionality like Exception -->
+@using System.Collections.Generic;  <!-- For working with Lists -->
+@using System.Threading.Tasks;      <!-- For using async/await -->
+@using RestSharp;                   <!-- For making HTTP requests to UPCitemdb -->
+@using Newtonsoft.Json           <!-- For deserializing JSON responses -->
+@using RoughDraftInventoryManagmentSystem.Models;  <!-- For your Product model -->
+
+<PageTitle>Inventory Management</PageTitle>
+
+<h3>Product Management</h3>
+
+<!-- Notifications -->
+<div class="alert @AlertCssClass alert-dismissible fade show" role="alert" style="display:@(ShowAlert ? "block" : "none")">
+    @AlertMessage
+    <button type="button" class="btn-close" aria-label="Close" @onclick="DismissAlert"></button>
+</div>
+
+<!-- Mode Switch: Add or Subtract Quantity -->
+<div class="form-check form-switch mb-3">
+    <input type="checkbox" class="form-check-input" id="quantityModeSwitch" @bind="IsAddMode" />
+    <label class="form-check-label" for="quantityModeSwitch">
+        @(IsAddMode ? "Add Mode" : "Subtract Mode")
+    </label>
+</div>
+
+<!-- Search Bar -->
+<div class="form-group">
+    <label for="search">Search:</label>
+    <input type="text" id="search" @bind="SearchTerm" class="form-control" placeholder="Search by name or SKU..." />
+</div>
+
+
+<!-- Product Table -->
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Images</th>
+            <th><button class="btn btn-link" @onclick='() => SortProducts("Name")'>Name</button></th>
+            <th><button class="btn btn-link" @onclick='() => SortProducts("SKU")'>SKU</button></th>
+            <th><button class="btn btn-link" @onclick='() => SortProducts("Price")'>Price</button></th>
+            <th><button class="btn btn-link" @onclick='() => SortProducts("Quantity")'>Quantity</button></th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var product in PaginatedProducts)
+        {
+                <tr>
+                    <td>
+                        @if (!string.IsNullOrEmpty(product.ImageUrl))
+                    {
+                        <img src="@product.ImageUrl" alt="@product.Name" style="max-width: 100px; max-height: 100px; object-fit: contain;" />
+                    }
+                    else
+                    {
+                        <img src="https://placehold.co/100x100/png" alt="No Image Available" style="max-width: 100px; max-height: 100px;" />
+                    }
+                </td>
+                    <td>@product.Name</td>
+                    <td>@product.SKU</td>
+                    <td>@product.Price.ToString("C")</td>
+                    <td>@product.Quantity</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" @onclick="() => EditProduct(product)">Edit</button>
+                        <button class= "btn btn-danger btn-sm" @onclick="() => ConfirmDelete(product.Id)">Delete</button>
+                    </td>
+                </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Add/Edit Product Form -->
+<button class="btn btn-secondary" @onclick="ToggleForm">Add Product</button>
+
+@if (ShowForm)
+{
+        <EditForm Model="CurrentProduct" OnValidSubmit="SaveProductAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="form-group">
+                <label for="productName">Name:</label>
+                <InputText id="productName" class="form-control" @bind-Value="CurrentProduct.Name" />
+            </div>
+            <div class="form-group">
+                <label for="productSKU">SKU:</label>
+                <InputText id="productSKU" class="form-control" @bind-Value="CurrentProduct.SKU" />
+            </div>
+            <div class="form-group">
+                <label for="productPrice">Price:</label>
+                <InputNumber id="productPrice" class ="form-control" @bind-Value="CurrentProduct.Price" />
+            </div>
+            <div class="form-group">
+                <label for="productQuantity">Quantity:</label>
+                <InputNumber id="productQuantity" class="form-group" @bind-Value="CurrentProduct.Quantity" />
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+        </EditForm>
+
+}
+
+    <!-- Pagination Controls -->
+    <div class="pagination-controls">
+        <button class="btn btn-primary" @onclick="() => ChangePage(CurrentPage - 1)" disabled="@(CurrentPage == 1)">Previous</button>
+    @for (int i = 1; i <= TotalPages; i++)
+    {
+        var pageIndex = i; //Capture the value of i for page change
+            <button class="btn @(pageIndex == CurrentPage ? "btn-primary" : "btn-primary")" @onclick="() => ChangePage(pageIndex)">
+            @pageIndex
+            </button>
+    }
+        <button class="btn btn-primary" @onclick="() => ChangePage(CurrentPage + 1)" disabled="@(CurrentPage == TotalPages)">Next</button>
+    </div>
+
+    <!-- Jump to Page -->
+    <div class="jump-to-page">
+        <lable for="jumpToPage">Jump to page:</lable>
+        <input type="number" id="jumpToPage" class="form-control" @bind="JumpPageNumber" min="1" max="@TotalPages" />
+        <button class="btn btn-primary" @onclick="() => JumpToPage()">Go</button>
+    </div>
+
+    <!-- Page Size Controls -->
+    <div class="page-size-controls mt-2">
+        <label>Items per page:</label>
+        <select class="form-select" @onchange="(e) => ChangePageSize(int.Parse(e.Value.ToString()))">
+            <option value="10" selected>10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
+    <!--/*Maroon = 5a0012; Gold = faa809 */
+    <!-- Page buttons style -->
+    <style>
+        .pagination-controls{
+            display: felx;
+            justify-context: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+        <!---
+        .pagination-controls button{
+            margin: 0 5px;
+            padding: 8px 16px;
+            border-radius: 5px;
+        }
+
+        .pagination-controls .btn-primary {
+            background-color: #007bff;
+            color: #fff;
+        }
+
+        .pagination-controls .btn-outline-primary:hover {
+            background-color: #f0f0f0;
+        }
+        -->
+    </style>
+    @if (SelectedProduct != null)
+{
+    <div class="product-info-panel mt-4">
+        <h4>Product Information</h4>
+        <p><strong>Name:</strong> @SelectedProduct.Name</p>
+        <p><strong>Price:</strong> $@SelectedProduct.Price</p>
+        <p><strong>Quantity in Stock:</strong> @SelectedProduct.Quantity</p>
+    </div>
+}
+
+
+@code {
+    // List of products displayed in the table
+    private List<Product> ProductList = new List<Product>(); // Initialize an empty list
+                                                             // List of filtered products
+    private List<Product> FilteredProducts = new List<Product>(); // Initialize an empty list to avoid null
+
+    // Controls the visibility of the Add/Edit form
+    private bool ShowForm = false;
+    // The product being added or edited
+    private Product CurrentProduct = new Product();
+
+    // Search Input - this is the backing field for the property
+    private string _searchTerm = string.Empty;
+
+    //Pagination properties
+    private int CurrentPage = 1;
+    private int PageSize = 10; //Default page size
+    private int TotalPages => (int)Math.Ceiling((double)FilteredProducts.Count / PageSize);
+
+    private string AlertCssClass = "alert-success";
+    private bool ShowAlert = false;
+    private string AlertMessage = string.Empty;
+
+    // Property for binding the Search input
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if(_searchTerm != value)
+            {
+                _searchTerm = value;
+                OnSearchTermChanged();
+            }
+        }
+    }
+
+    //
+    private string CurrentSortField = "Name";
+
+    //
+    private bool SortAscending = true;
+
+    // Lifecycle method to load initial products
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+    }
+
+    // Load products from the service asynchronously
+    private async Task LoadProductsAsync()
+    {
+        ProductList = await ProductService.GetProductsAsync();
+        FilteredProducts = ProductList;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Filter products based on the search term
+    private void OnSearchTermChanged()
+    {
+        if(string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            FilteredProducts = ProductList;
+        }
+        else
+        {
+            FilteredProducts = ProductList
+                .Where(p => (p.Name?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (p.SKU?.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ?? false))
+                .ToList();
+        }
+        CurrentPage = 1; //Reset to first page after search
+    }
+
+    //Sort the product list based on a given field
+    private void SortProducts(string field)
+    {
+        if (CurrentSortField == field)
+        {
+            SortAscending = !SortAscending; //Toggle sort direction if the same field is clicked again
+        }
+        else
+        {
+            CurrentSortField = field;
+            SortAscending = true; //Reset to ascending when a new field is sorted
+        }
+
+        switch(field)
+        {
+            case "Name":
+                FilteredProducts = SortAscending
+                    ? FilteredProducts.OrderBy(p => p.Name).ToList()
+                    : FilteredProducts.OrderByDescending(p => p.Name).ToList();
+                break;
+            case "SKU":
+                FilteredProducts = SortAscending
+                    ? FilteredProducts.OrderBy(p => p.SKU).ToList()
+                    : FilteredProducts.OrderByDescending(p => p.SKU).ToList();
+                break;
+            case "Price":
+                FilteredProducts = SortAscending
+                    ? FilteredProducts.OrderBy(p => p.Price).ToList()
+                    : FilteredProducts.OrderByDescending(p => p.Price).ToList();
+                break;
+            case "Quantity":
+                FilteredProducts = SortAscending
+                    ? FilteredProducts.OrderBy(p => p.Quantity).ToList()
+                    : FilteredProducts.OrderByDescending(p => p.Quantity).ToList();
+                break;
+
+        }
+
+        CurrentPage = 1; //Reset to first page after sorting
+    }
+
+    private IEnumerable<Product> PaginatedProducts => FilteredProducts == null
+        ? Enumerable.Empty<Product>() // Handle case when FilteredProducts is null
+        : FilteredProducts
+        .Skip((CurrentPage - 1) * PageSize)
+        .Take(PageSize);
+
+    // Method to change the page
+    private void ChangePage(int pageNumber)
+    {
+        Console.WriteLine($"Changing to page: {pageNumber}");
+        if(pageNumber >= 1 && pageNumber <= TotalPages)
+        {
+            CurrentPage = pageNumber;
+            StateHasChanged();
+        }
+    }
+    // Method to jump to specific page
+    private int JumpPageNumber = 1;
+
+    private void JumpToPage()
+    {
+        if (JumpPageNumber >= 1 && JumpPageNumber <= TotalPages)
+        {
+            CurrentPage = JumpPageNumber;
+        }
+    }
+
+    // Method to change page size
+    private void ChangePageSize(int size)
+    {
+        PageSize = size;
+        CurrentPage = 1; // Reset to the first page after changing page size
+    }
+
+
+    //Method to toggle the Add/Edit form visibility
+    private void ToggleForm()
+    {
+        ShowForm = !ShowForm;
+        CurrentProduct = new Product(); //Reser the product form
+    }
+
+    //Method to handle adding or updating a product
+    private async Task SaveProductAsync()
+    {
+        if (CurrentProduct.Id == 0)
+        {
+            await ProductService.AddProductAsync(CurrentProduct); // Asynchronous add
+            ShowAlertMessage("Product added successfully.");
+        }
+        else
+        {
+            await ProductService.UpdateProductAsync(CurrentProduct); // Asynchronous update
+            ShowAlertMessage("Product updated successfully.");
+        }
+
+        ProductList = await ProductService.GetProductsAsync();
+        FilteredProducts = ProductList;
+        ShowForm = false;  //Hide the form
+    }
+
+    // Method to edit a product
+    private void EditProduct(Product product)
+    {
+        ShowForm = true;
+        CurrentProduct = new Product
+            {
+                Id = product.Id,
+                Name = product.Name,
+                SKU = product.SKU,
+                Price = product.Price,
+                Quantity = product.Quantity
+            };
+    }
+
+    //Method to delete a product
+    private async Task DeleteProductAsync(int id)
+    {
+        await ProductService.DeleteProductAsync(id); // Asynchronous delete
+        ProductList = await ProductService.GetProductsAsync();
+        FilteredProducts = ProductList;
+    }
+
+    //Method to confirm deletion
+    private async Task ConfirmDelete(int id)
+    {
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirmDelete");
+        if (confirmed)
+        {
+            await DeleteProductAsync(id);
+            ShowAlertMessage("Product deleted successfully.", "alert-warning");
+        }
+    }
+
+    //Method to cancel the form and hide it
+    private void CancelForm()
+    {
+        ShowForm = false;
+        CurrentProduct = new Product();
+    }
+
+    //Method to display an alert with a specific message
+    private void ShowAlertMessage(string message, string cssClass = "alert-success")
+    {
+        AlertMessage = message;
+        AlertCssClass = cssClass;
+        ShowAlert = true;
+
+        // Hide the alert after a short delay (e.g. 3 seconds)
+        var _ = Task.Delay(3000).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                InvokeAsync(() => ShowAlert = false);
+                StateHasChanged();
+            });
+        });
+    }
+
+    // Method to dismiss the alert manually
+    private void DismissAlert()
+    {
+        ShowAlert = false;
+    }
+
+    // New Property to track Add or Subtract mode
+    private bool IsAddMode = true; //Default to Add Mode
+    private string ScannedBarcode;
+
+    //Handle when a barcode is scanned
+    private async Task OnBarcodeScanned(ChangeEventArgs e)
+    {
+        ScannedBarcode = e.Value?.ToString();
+        Console.WriteLine($"Scanned Barcode: {ScannedBarcode}");
+
+        if (!string.IsNullOrEmpty(ScannedBarcode))
+        {
+            await HandleScannedBarcode(ScannedBarcode);
+            ScannedBarcode = ""; //Clear input field
+        }
+    }
+
+    private DotNetObjectReference<Products>? objRef;
+
+    protected override void OnInitialized()
+    {
+        objRef = DotNetObjectReference.Create(this);
+    }
+
+    private Product? SelectedProduct { get; set; }
+
+
+    private async Task UpdateProductQuantity(Product product)
+    {
+        if (IsAddMode)
+        {
+            /*Add mode: Increment the quantity*/
+            product.Quantity++;
+            await ProductService.UpdateProductAsync(product);
+            ShowAlertMessage($"Added 1 unit to {product.Name}. New Quantity: {product.Quantity}", "alert-success");
+        }
+        else
+        {
+            /* Subtract mode: Decrement the quantity if greater than 0 */
+            if (product.Quantity > 0)
+            {
+                product.Quantity--;
+                await ProductService.UpdateProductAsync(product);
+                ShowAlertMessage($"Removed 1 unit from {product.Name}. New Quantity: {product.Quantity}", "alert-success");
+            }
+            else
+            {
+                ShowAlertMessage($"Cannot subtract from {product.Name} as quantity is already zero.", "alert-warning");
+            }
+        }
+    }
+
+
+    public class UPCResponse
+    {
+        [JsonPropertyName("code")]
+        public string Code { get; set; } = string.Empty;
+
+        [JsonPropertyName("total")]
+        public int Total { get; set; }
+
+        [JsonPropertyName("offset")]
+        public int Offset { get; set; }
+
+        [JsonPropertyName("items")]
+        public List<Item> Items { get; set; } = new List<Item>();
+    }
+
+    public class Item
+    {
+        [JsonPropertyName("ean")]
+        public string EAN { get; set; } = string.Empty;
+
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
+
+        [JsonPropertyName("lowest_recorded_price")]
+        public decimal? LowestRecordedPrice { get; set; }
+
+        [JsonPropertyName("brand")]
+        public string Brand { get; set; } = string.Empty;
+
+        [JsonPropertyName("offers")]
+        public List<Offer> Offers { get; set; } = new List<Offer>();  // Added Offers property
+
+        [JsonPropertyName("images")] 
+        public List<string> Images { get; set; } = new List<string>();
+    }
+
+    // Define the Offer class based on the API response
+    public class Offer
+    {
+        [JsonPropertyName("merchant")]
+        public string Merchant { get; set; } = string.Empty;
+
+        [JsonPropertyName("domain")]
+        public string Domain { get; set; } = string.Empty;
+
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = string.Empty;
+
+        [JsonPropertyName("price")]
+        public decimal? Price { get; set; } // Price of the product in this offer
+
+        [JsonPropertyName("currency")]
+        public string Currency { get; set; } = string.Empty;
+
+        [JsonPropertyName("shipping")]
+        public string Shipping { get; set; } = string.Empty;
+
+        [JsonPropertyName("updated_t")]
+        public long UpdatedTimestamp { get; set; } // UNIX timestamp of the last update
+    }
+
+    [JSInvokable]
+    public async Task HandleScannedBarcode(string barcode)
+    {
+        Console.WriteLine($"Handling Scanned Barcode: {barcode}");
+        //Check if the product with the scanned barcode alreaady exists
+        var existingProduct = ProductList.FirstOrDefault(p => p.SKU == barcode);
+        if (existingProduct != null)
+        {
+            SelectedProduct = existingProduct;
+            Console.WriteLine($"Product found locally: {existingProduct.Name}, updating quantity.");
+            // Product already exists
+            // Apply add or subtract operation based on the current mode
+            await UpdateProductQuantity(existingProduct);
+        }
+        else
+        {
+            // Product not found locally, call API
+            await FetchProductFromExternalApi(barcode);
+        }
+        await LoadProductsAsync(); // Refresh the product list to show updated quantities
+    }
+
+    private async Task FetchProductFromExternalApi(string barcode)
+    {
+        try
+        {
+            var client = new RestClient("https://api.upcitemdb.com/prod/trial/");
+
+            // Create a GET request for the 'lookup' endpoint
+            var request = new RestRequest("lookup", Method.Get);
+
+            // Add the required query parameter for the barcode (UPC)
+            request.AddQueryParameter("upc", barcode);
+
+            // Optional: Add the 'Accept-Encoding' header for compression
+            request.AddHeader("Accept-Encoding", "gzip, deflate");
+
+            // Execute the request asynchronously
+            var response = await client.ExecuteAsync(request);
+
+            if (response.IsSuccessful)
+            {
+                var productData = Newtonsoft.Json.JsonConvert.DeserializeObject<UPCResponse>(response.Content);
+
+                if (productData?.Items != null && productData.Items.Any())
+                {
+                    var item = productData.Items.First();
+
+                    // Calculate average price from offers
+                    decimal price = 0.0m;
+                    if (item.Offers != null && item.Offers.Any())
+                    {
+                        var trustedMerchants = new List<string> { "Walgreens", "Wal-Mart.com", "Target", "CVS"};
+                        var validPrices = item.Offers
+                        .Where(o => trustedMerchants.Contains(o.Merchant) && o.Price > 0)
+                        .Select(o => o.Price)
+                        .ToList();
+
+                        if (validPrices.Any())
+                        {
+                            price = Math.Round(validPrices.Average() ?? 0.0m, 2);
+
+                        }
+                        else
+                        {
+                            price = Math.Round(validPrices.Min() ?? 0.0m, 2);
+                        }
+                    }
+                    else
+                    {
+                        price = Math.Round(item.LowestRecordedPrice ?? 0.0m, 2);
+                    }
+
+                    //Extract the Image URL (first available image)
+                    string imageUrl = item.Images?.FirstOrDefault() ?? string.Empty;
+                    Console.WriteLine($"ImageURL: {ScannedBarcode}");
+                    // Create a new product and add to your local list
+                    var newProduct = new Product
+                        {
+                            Name = item.Title,
+                            SKU = barcode,
+                            Price = price, // You can use another field if more accurate data is needed
+                            Quantity = 0, // Set initial quantity or adjust based on context
+                            ImageUrl = imageUrl //Set image URl
+                        };
+
+                    ProductList.Add(newProduct);
+                    await ProductService.AddProductAsync(newProduct);
+                    ShowAlertMessage($"Product found: {newProduct.Name}, added to the local inventory.", "alert-success");
+
+                    //Set the selected product to show info in the UI
+                    SelectedProduct = newProduct;
+
+                    await UpdateProductQuantity(newProduct);
+                }
+                else
+                {
+                    ShowAlertMessage("Product not found in external database.", "alert-danger");
+                }
+            }
+            else
+            {
+                ShowAlertMessage($"Failed to reach the external API. Status Code: {response.StatusCode}.", "alert-danger");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+            ShowAlertMessage("An error occurred while fetching product data from the external database.", "alert-danger");
+        }
+    }
+
+    /*
+        if(IsAddMode)
+            {
+                //Add mode
+                existingProduct.Quantity++;
+                ProductService.UpdateProduct(existingProduct);
+                ShowAlertMessage($"Added 1 unit to {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
+            }
+            else
+            {
+                //Subtract mode
+                if(existingProduct.Quantity > 0)
+                {
+                    existingProduct.Quantity--;
+                    ProductService.UpdateProduct(existingProduct);
+                    ShowAlertMessage($"Removed 1 unit from {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
+                }
+                else
+                {
+                    ShowAlertMessage($"Cannot subtract from {existingProduct.Name} as quantity is already zero.", "alert-warning");
+                }
+            }
+
+            // Refresh the product list
+            ProductList = ProductService.GetProducts();
+        }
+        else
+        {
+            if (IsAddMode)
+            {
+                Console.WriteLine("Product not found, adding as a new product.");
+                // Product doesn't exist, add it as a new product
+                await AddNewProductWithBarcode(barcode);
+                ShowAlertMessage($"Added new product");
+            }
+            else
+            {
+                ShowAlertMessage("Product not found. Cannot subtract nonexistant product.", "alert-danger");
+            }
+        }
+        await LoadProductsAsync();
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+    */
+
+    //Mockup for showing quantity update dialog
+    private void ShowQuantityUpdateDialog(Product product)
+    {
+        //Example: Show a dialog allowing the user ti add or subtract quantity
+        //For now, we'll just add +1 for simplicity
+        product.Quantity++;
+        ShowAlertMessage($"Updated quantity for {product.Name}. New Quantity: {product.Quantity}");
+        StateHasChanged();
+    }
+
+    //Mockup for adding a new product with barcode
+    private async Task AddNewProductWithBarcode(string barcode)
+    {
+        //Here you could either prompt for additional details or add directly
+        CurrentProduct = new Product
+            {
+                SKU = barcode,
+                Name = "New Product (Edit Name)",
+                Price = 0.0m,
+                Quantity = 1
+            };
+        ProductService.AddProduct(CurrentProduct);
+        ProductList = ProductService.GetProducts(); //Refresh list
+        ProductList = new List<Product>(ProductService.GetProducts()); 
+        ShowAlertMessage($"New product added with barcode: {barcode}");
+
+        await InvokeAsync(StateHasChanged);
+        await LoadProductsAsync();
+        //Add new product
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("registerBarcodeScanner", objRef);
+        }
+    }
+}
+ 

@@ -1,0 +1,101 @@
+﻿@using Microsoft.AspNetCore.Components.Web
+@namespace RoughDraftInventoryManagmentSystem.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="~/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link href="css/site.css" rel="stylesheet" />
+    <link href="RoughDraftInventoryManagmentSystem.styles.css" rel="stylesheet" />
+    <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    @RenderBody()
+
+    <div id="blazor-error-ui" role="alert">
+        <environment include="Staging,Production">
+            An error has occurred. This application may no longer respond until reloaded.
+        </environment>
+        <environment include="Development">
+            An unhandled exception has occurred. See browser dev tools for details.
+        </environment>
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss" onclick="document.getElementById('blazor-error-ui').style.display='none';">🗙</a>
+    </div>
+
+    <script>
+        function confirmDelete(){
+            return confirm("Are you sure you want to delete this product?");
+        }
+    </script>
+
+
+        <script>
+        console.log("JavaScript script loaded"); // Add this to verify if script runs at all
+
+        let barcode = "";
+        let scanning = false;
+        let dotNetObjectRefernce = null;
+
+        function registerBarcodeScanner(dotNetObject) {
+            dotNetObjectReference = dotNetObject;
+        }
+
+        document.addEventListener("keydown", function(event) {
+            // Assume that a barcode scanner will fire multiple events very quickly
+            if (!scanning) {
+                console.log("Starting barcode scan...");
+                scanning = true;
+                barcode = ""; //Reset barcode value
+            }
+
+            if (event.key === "Enter") {
+                console.log("Barcode scanned: ", barcode);
+                // Barcode scanning completed, send to Blazor
+                if (barcode.length > 0 && dotNetObjectReference) {
+                    dotNetObjectReference.invokeMethodAsync('HandleScannedBarcode', barcode)
+                    .then(() => console.log("Barcode successfully sent to Blazor."))
+                    .catch(err => console.error("Error sending barcode to Blazor:", err));
+                }
+                barcode = ""; // Reset after sending
+                scanning = false;
+            }
+            else
+            {
+                // Accumulate barcode characters
+                barcode += event.key;
+            }
+        })
+    </script>
+
+
+    <script src="_framework/blazor.server.js"></script>
+
+
+
+
+
+
+    <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(function (registration) {
+        console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch(function (error) {
+        console.error('Service Worker registration failed:', error);
+      });
+  }
+</script>
+
+
+
+
+
+</body>
+</html>
