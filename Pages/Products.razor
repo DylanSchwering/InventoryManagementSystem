@@ -28,12 +28,17 @@
 </div>
 
 
-<!-- Barcode Scanning Button -->
+<!-- Barcode Scanning Buttons -->
 <div class="mb-3">
-    <button class="btn btn-secondary" @onclick="StartBarcodeScanner">Scan Barcode with Camera</button>
+    <button class="btn btn-primary" @onclick="StartBarcodeScanner" style="@((IsScannerRunning ? "display:none;" : ""))">Start Camera</button>
 </div>
-<div id="barcode-scanner" style="width: 300px; height: 300px;"></div>
 
+<div id="barcode-scanner" style="position: relative;"></div>
+
+<!-- Barcode scanner camera will be displayed here-->
+<div>
+    <button class="btn btn-secondary" @onclick="StopBarcodeScanner" style="@(!IsScannerRunning ? "display:none;" : "")">Close Camera</button>
+</div>
 
 <!-- Mode Switch: Add or Subtract Quantity -->
 <div class="form-check form-switch mb-3">
@@ -212,6 +217,8 @@
     private string AlertCssClass = "alert-success";
     private bool ShowAlert = false;
     private string AlertMessage = string.Empty;
+
+    private bool IsScannerRunning = false;
 
     // Property for binding the Search input
     private string SearchTerm
@@ -660,51 +667,51 @@
         }
     }
 
-    /*
-        if(IsAddMode)
-            {
-                //Add mode
-                existingProduct.Quantity++;
-                ProductService.UpdateProduct(existingProduct);
-                ShowAlertMessage($"Added 1 unit to {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
-            }
-            else
-            {
-                //Subtract mode
-                if(existingProduct.Quantity > 0)
-                {
-                    existingProduct.Quantity--;
-                    ProductService.UpdateProduct(existingProduct);
-                    ShowAlertMessage($"Removed 1 unit from {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
-                }
-                else
-                {
-                    ShowAlertMessage($"Cannot subtract from {existingProduct.Name} as quantity is already zero.", "alert-warning");
-                }
-            }
-
-            // Refresh the product list
-            ProductList = ProductService.GetProducts();
+                /*
+            if(IsAddMode)
+        {
+        //Add mode
+            existingProduct.Quantity++;
+            ProductService.UpdateProduct(existingProduct);
+            ShowAlertMessage($"Added 1 unit to {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
+    }
+    else
+    {
+    //Subtract mode
+    if(existingProduct.Quantity > 0)
+    {
+    existingProduct.Quantity--;
+    ProductService.UpdateProduct(existingProduct);
+        ShowAlertMessage($"Removed 1 unit from {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
         }
         else
         {
-            if (IsAddMode)
-            {
-                Console.WriteLine("Product not found, adding as a new product.");
-                // Product doesn't exist, add it as a new product
-                await AddNewProductWithBarcode(barcode);
-                ShowAlertMessage($"Added new product");
-            }
-            else
-            {
-                ShowAlertMessage("Product not found. Cannot subtract nonexistant product.", "alert-danger");
-            }
+        ShowAlertMessage($"Cannot subtract from {existingProduct.Name} as quantity is already zero.", "alert-warning");
         }
-        await LoadProductsAsync();
+        }
+
+        // Refresh the product list
+        ProductList = ProductService.GetProducts();
+        }
+        else
+                {
+                if (IsAddMode)
+                {
+                Console.WriteLine("Product not found, adding as a new product.");
+    // Product doesn't exist, add it as a new product
+    await AddNewProductWithBarcode(barcode);
+    ShowAlertMessage($"Added new product");
+    }
+                else
+                {
+    ShowAlertMessage("Product not found. Cannot subtract nonexistant product.", "alert-danger");
+    }
+    }
+    await LoadProductsAsync();
     }
 
     public void Dispose()
-    {
+        {
         objRef?.Dispose();
     }
     */
@@ -751,10 +758,25 @@
     // Start barcode scanning
     private async Task StartBarcodeScanner()
     {
+        IsScannerRunning = true;
         await JSRuntime.InvokeVoidAsync("startQuagga");
     }
 
+    private async Task StopBarcodeScanner()
+    {
+        try
+        {
+            // Update the scanner running state to hide the close button
+            IsScannerRunning = false;
 
+            // Call JavaScript to stop Quagga
+            await JSRuntime.InvokeVoidAsync("stopQuagga");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred while stopping the barcode scanner: {ex.Message}");
+        }
+    }   
 
 
 

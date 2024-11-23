@@ -101,13 +101,15 @@
             inputStream: {
                 name: "Live",
                 type: "LiveStream",
-                target: document.querySelector('#barcode-scanner'),
                 constraints: {
+                    width: 640,
+                    height: 400,
                     facingMode: "environment" // Use the back camera on phones
-                }
+                },
+                target: document.querySelector('#barcode-scanner')
             },
             decoder: {
-                readers: ["ean_reader", "code_128_reader"] // You can add more barcode formats here if needed
+                readers: ["ean_reader", "code_128_reader", "upc_reader"] // You can add more barcode formats here if needed
             }
         }, function (err) {
             if (err) {
@@ -128,6 +130,24 @@
             }
         });
     }
+
+function stopQuagga() {
+    if (Quagga) {
+        try {
+            // Stops the video stream and scanner if initialized
+            Quagga.stop();
+            // Remove the camera view by clearing the content of the element
+            let scannerContainer = document.querySelector("#barcode-scanner");
+            if (scannerContainer) {
+                scannerContainer.innerHTML = ""; // This will remove the video element and other children added by Quagga
+            }
+        } catch (err) {
+            console.error("Error while stopping Quagga:", err);
+        }
+    }
+}
+
+
 </script>
 
 
