@@ -3,19 +3,17 @@
 @inject RoughDraftInventoryManagmentSystem.Services.ProductService ProductService
 @inject IJSRuntime JSRuntime
 @inject HttpClient HttpClient
-@using System.Text.Json
-@using System.Collections.Generic;
 @using System.Text.Json.Serialization;
 @using System.Net.Http;
 @using System.Text.Json;
 @using System.Threading.Tasks;
-@using System.Collections.Generic;
 @using System;                      <!-- For basic system functionality like Exception -->
 @using System.Collections.Generic;  <!-- For working with Lists -->
 @using System.Threading.Tasks;      <!-- For using async/await -->
 @using RestSharp;                   <!-- For making HTTP requests to UPCitemdb -->
-@using Newtonsoft.Json           <!-- For deserializing JSON responses -->
+@using Newtonsoft.Json;          <!-- For deserializing JSON responses -->
 @using RoughDraftInventoryManagmentSystem.Models;  <!-- For your Product model -->
+@using Microsoft.JSInterop;
 
 <PageTitle>Inventory Management</PageTitle>
 
@@ -28,11 +26,19 @@
 </div>
 
 
-<!-- Barcode Scanning Button -->
+<!-- Barcode Scanning Buttons -->
 <div class="mb-3">
-    <button class="btn btn-secondary" @onclick="StartBarcodeScanner">Scan Barcode with Camera</button>
+    <button class="btn btn-primary" @onclick="StartBarcodeScanner" style="@((IsScannerRunning ? "display:none;" : ""))">Start Camera</button>
 </div>
-<div id="barcode-scanner" style="width: 300px; height: 300px;"></div>
+<!-- id="scanner-container" -->
+    <div id="reader" style="position: relative;"></div>
+
+
+<!-- Barcode scanner camera will be displayed here-->
+<div>
+    <button class="btn btn-secondary" @onclick="StopBarcodeScanner" style="@(!IsScannerRunning ? "display:none;" : "")">Close Camera</button>
+</div>
+
 
 
 <!-- Mode Switch: Add or Subtract Quantity -->
@@ -152,7 +158,7 @@
     <!-- Page buttons style -->
     <style>
         .pagination-controls{
-            display: felx;
+            display: flex;
             justify-context: center;
             align-items: center;
             margin-top: 20px;
@@ -212,6 +218,8 @@
     private string AlertCssClass = "alert-success";
     private bool ShowAlert = false;
     private string AlertMessage = string.Empty;
+
+    private bool IsScannerRunning = false;
 
     // Property for binding the Search input
     private string SearchTerm
@@ -546,8 +554,16 @@
         [JsonPropertyName("updated_t")]
         public long UpdatedTimestamp { get; set; } // UNIX timestamp of the last update
     }
+    /*
+    //testing for barcode
+    [JSInvokable("HandleScannedBarcode")]
+    public static async Task HandleScannedBarcode(string barcode)
+        {
+        Console.WriteLine($"Handling Scanned Barcode: {barcode}");
+    }
+    */
 
-    [JSInvokable]
+    [JSInvokable("HandleScannedBarcode")]
     public async Task HandleScannedBarcode(string barcode)
     {
         Console.WriteLine($"Handling Scanned Barcode: {barcode}");
@@ -567,6 +583,7 @@
             await FetchProductFromExternalApi(barcode);
         }
         await LoadProductsAsync(); // Refresh the product list to show updated quantities
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task FetchProductFromExternalApi(string barcode)
@@ -660,54 +677,11 @@
         }
     }
 
-    /*
-        if(IsAddMode)
-            {
-                //Add mode
-                existingProduct.Quantity++;
-                ProductService.UpdateProduct(existingProduct);
-                ShowAlertMessage($"Added 1 unit to {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
-            }
-            else
-            {
-                //Subtract mode
-                if(existingProduct.Quantity > 0)
-                {
-                    existingProduct.Quantity--;
-                    ProductService.UpdateProduct(existingProduct);
-                    ShowAlertMessage($"Removed 1 unit from {existingProduct.Name}. New Quantity: {existingProduct.Quantity}");
-                }
-                else
-                {
-                    ShowAlertMessage($"Cannot subtract from {existingProduct.Name} as quantity is already zero.", "alert-warning");
-                }
-            }
-
-            // Refresh the product list
-            ProductList = ProductService.GetProducts();
-        }
-        else
-        {
-            if (IsAddMode)
-            {
-                Console.WriteLine("Product not found, adding as a new product.");
-                // Product doesn't exist, add it as a new product
-                await AddNewProductWithBarcode(barcode);
-                ShowAlertMessage($"Added new product");
-            }
-            else
-            {
-                ShowAlertMessage("Product not found. Cannot subtract nonexistant product.", "alert-danger");
-            }
-        }
-        await LoadProductsAsync();
-    }
-
     public void Dispose()
     {
         objRef?.Dispose();
     }
-    */
+
 
     //Mockup for showing quantity update dialog
     private void ShowQuantityUpdateDialog(Product product)
@@ -740,21 +714,37 @@
         //Add new product
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender)
         {
-            await JSRuntime.InvokeVoidAsync("registerBarcodeScanner", objRef);
+            objRef = DotNetObjectReference.Create(this);
+            JSRuntime.InvokeVoidAsync("registerBarcodeScanner", objRef);
         }
     }
 
     // Start barcode scanning
     private async Task StartBarcodeScanner()
     {
-        await JSRuntime.InvokeVoidAsync("startQuagga");
+        IsScannerRunning = true;
+        await JSRuntime.InvokeVoidAsync("startHtml5QrcodeScanner");
     }
 
+    private async Task StopBarcodeScanner()
+    {
+        try
+        {
+            // Update the scanner running state to hide the close button
+            IsScannerRunning = false;
 
+            // Call JavaScript to stop Quagga
+            await JSRuntime.InvokeVoidAsync("stopHtml5QrcodeScanner");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred while stopping the barcode scanner: {ex.Message}");
+        }
+    }   
 
 
 
