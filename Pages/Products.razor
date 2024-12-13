@@ -40,6 +40,12 @@
 </div>
 
 
+<div id="barcode-scanner" style="position: relative;"></div>
+
+<!-- Barcode scanner camera will be displayed here-->
+<div>
+    <button class="btn btn-secondary" @onclick="StopBarcodeScanner" style="@(!IsScannerRunning ? "display:none;" : "")">Close Camera</button>
+</div>
 
 <!-- Mode Switch: Add or Subtract Quantity -->
 <div class="form-check form-switch mb-3">
@@ -678,7 +684,7 @@
     }
 
     public void Dispose()
-    {
+        {
         objRef?.Dispose();
     }
 
