@@ -28,24 +28,20 @@
 
 <!-- Barcode Scanning Buttons -->
 <div class="mb-3">
+    <label for="cameraSelect">Select Camera:</label>
+    <select id="cameraSelect" class="form-select mb-2"></select>
     <button class="btn btn-primary" @onclick="StartBarcodeScanner" style="@((IsScannerRunning ? "display:none;" : ""))">Start Camera</button>
 </div>
-<!-- id="scanner-container" -->
-    <div id="reader" style="position: relative;"></div>
 
+<!-- Barcode scanner camera will be displayed here -->
+<div id="reader" style="position: relative;"></div>
 
-<!-- Barcode scanner camera will be displayed here-->
 <div>
     <button class="btn btn-secondary" @onclick="StopBarcodeScanner" style="@(!IsScannerRunning ? "display:none;" : "")">Close Camera</button>
 </div>
-
 
 <div id="barcode-scanner" style="position: relative;"></div>
 
-<!-- Barcode scanner camera will be displayed here-->
-<div>
-    <button class="btn btn-secondary" @onclick="StopBarcodeScanner" style="@(!IsScannerRunning ? "display:none;" : "")">Close Camera</button>
-</div>
 
 <!-- Mode Switch: Add or Subtract Quantity -->
 <div class="form-check form-switch mb-3">
