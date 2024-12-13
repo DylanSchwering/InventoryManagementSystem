@@ -100,54 +100,75 @@
 
 <script>
 let html5QrCode;
+let selectedCameraId = null; // Variable to store the chosen camera ID
 
 function startHtml5QrcodeScanner() {
     if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("reader"); // Make sure to initialize before calling start
+        html5QrCode = new Html5Qrcode("reader"); // Initialize if not already done
     }
 
-    console.log("Called Html scanner");
+    console.log("Starting QR scanner");
 
     function onScanSuccess(decodedText, decodedResult) {
         console.log(`Code matched = ${decodedText}`);
-        // Pass the scanned code to Blazor
         dotNetObjectReference.invokeMethodAsync('HandleScannedBarcode', decodedText)
-    .then(() => console.log("Barcode successfully sent to Blazor."))
-    .catch(err => console.error("Error sending barcode to Blazor:", err));
+            .then(() => console.log("Barcode successfully sent to Blazor."))
+            .catch(err => console.error("Error sending barcode to Blazor:", err));
     }
-    //HandleScannedBarcode
+
     function onScanFailure(error) {
         console.warn(`Code scan error = ${error}`);
     }
 
-    html5QrCode.start(
-        { facingMode: "environment" }, // or "user" for front camera
-        { fps: 5, qrbox: {width: 750, height: 525} },
-        onScanSuccess,
-        onScanFailure
-    ).catch((err) => {
-        console.error("Error starting scanner:", err);
-    });
+    if (selectedCameraId) {
+        // Start with the selected camera
+        html5QrCode.start(
+            { deviceId: { exact: selectedCameraId } },
+            { fps: 5, qrbox: { width: 750, height: 525 } },
+            onScanSuccess,
+            onScanFailure
+        ).catch(err => {
+            console.error("Error starting scanner with selected camera:", err);
+        });
+    } else {
+        console.error("No camera selected. Please fetch and choose a camera.");
+    }
 }
 
+// Fetch and display available cameras
+function fetchAvailableCameras() {
+    Html5Qrcode.getCameras()
+        .then(cameras => {
+            if (cameras && cameras.length > 0) {
+                console.log("Available cameras:", cameras);
 
-Html5Qrcode.getCameras()
-    .then(cameras => {
-        if (cameras && cameras.length > 0) {
-            console.log("Available cameras:", cameras);
-            const cameraId = cameras[0].id; // Use the first camera
-            html5QrCode.start(cameraId, config)
-                .then(() => console.log("Camera started"))
-                .catch(err => console.error("Error starting camera:", err));
-        } else {
-            console.error("No cameras found.");
-        }
-    })
-    .catch(err => console.error("Error fetching cameras:", err));
-    
-    function stopHtml5QrcodeScanner() {
-        html5QrCode.stop();
+                // Optionally, filter cameras by label (e.g., standard back camera)
+                const standardCamera = cameras.find(camera =>
+                    camera.label.toLowerCase().includes("back")
+                    && !camera.label.toLowerCase().includes("ultrawide")
+                );
+
+                selectedCameraId = standardCamera ? standardCamera.id : cameras[0].id; // Default to the first camera if no match
+                console.log(`Selected camera: ${selectedCameraId}`);
+            } else {
+                console.error("No cameras found.");
+            }
+        })
+        .catch(err => console.error("Error fetching cameras:", err));
+}
+
+// Stop the QR scanner
+function stopHtml5QrcodeScanner() {
+    if (html5QrCode) {
+        html5QrCode.stop()
+            .then(() => console.log("QR scanner stopped."))
+            .catch(err => console.error("Error stopping QR scanner:", err));
     }
+}
+
+// Call this function to fetch cameras and start scanning
+fetchAvailableCameras();
+
 
 
 
